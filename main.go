@@ -311,7 +311,9 @@ func main() {
 	// In Docker 1.13 and later, Docker sets the default policy of the FORWARD chain to DROP.
 	if opts.iptablesForwardRules {
 		log.Infof("Changing default FORWARD chain policy to ACCEPT")
-		go network.SetupAndEnsureIPTables(network.ForwardRules(config.Network.String()), opts.iptablesResyncSeconds)
+
+		// Move forward rules in special table
+		go network.SetupAndEnsureIPTables(network.ForwardRules(network.FlannelFwdChain, config.Network.String()), opts.iptablesResyncSeconds)
 	}
 
 	if err := WriteSubnetFile(opts.subnetFile, config.Network, opts.ipMasq, bn); err != nil {

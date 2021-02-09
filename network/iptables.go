@@ -28,6 +28,8 @@ import (
 	"github.com/coreos/go-iptables/iptables"
 )
 
+const FlannelFwdChain = "FLANNEL-FORWARD"
+
 type IPTables interface {
 	AppendUnique(table string, chain string, rulespec ...string) error
 	Delete(table string, chain string, rulespec ...string) error
@@ -37,6 +39,13 @@ type IPTables interface {
 type IPTablesRule struct {
 	table    string
 	chain    string
+	rulespec []string
+}
+
+type IPTablesRulePos struct {
+	table    string
+	chain    string
+	pos      int
 	rulespec []string
 }
 
@@ -74,11 +83,17 @@ func MasqRules(ipn ip.IP4Net, lease *subnet.Lease) []IPTablesRule {
 	}
 }
 
-func ForwardRules(flannelNetwork string) []IPTablesRule {
+func RulesToInsert(chain string) []IPTablesRulePos {
+	return []IPTablesRulePos{
+		{"filter", "FORWARD", 1, []string{"-m", "comment", "--comment", "flannel forwarding rules", "-j", chain}},
+	}
+}
+
+func ForwardRules(chain, flannelNetwork string) []IPTablesRule {
 	return []IPTablesRule{
 		// These rules allow traffic to be forwarded if it is to or from the flannel network range.
-		{"filter", "FORWARD", []string{"-s", flannelNetwork, "-j", "ACCEPT"}},
-		{"filter", "FORWARD", []string{"-d", flannelNetwork, "-j", "ACCEPT"}},
+		{"filter", chain, []string{"-s", flannelNetwork, "-j", "ACCEPT"}},
+		{"filter", chain, []string{"-d", flannelNetwork, "-j", "ACCEPT"}},
 	}
 }
 
@@ -140,6 +155,7 @@ func ensureIPTables(ipt IPTables, rules []IPTablesRule) error {
 		// if all the rules already exist, no need to do anything
 		return nil
 	}
+
 	// Otherwise, teardown all the rules and set them up again
 	// We do this because the order of the rules is important
 	log.Info("Some iptables rules are missing; deleting and recreating rules")
@@ -151,6 +167,13 @@ func ensureIPTables(ipt IPTables, rules []IPTablesRule) error {
 }
 
 func setupIPTables(ipt IPTables, rules []IPTablesRule) error {
+	if err := addNewChain("filter", FlannelFwdChain); err != nil {
+		return err
+	}
+	if err := insertRules(RulesToInsert(FlannelFwdChain)); err != nil {
+		return err
+	}
+
 	for _, rule := range rules {
 		log.Info("Adding iptables rule: ", strings.Join(rule.rulespec, " "))
 		err := ipt.AppendUnique(rule.table, rule.chain, rule.rulespec...)
@@ -169,4 +192,42 @@ func teardownIPTables(ipt IPTables, rules []IPTablesRule) {
 		// doesn't exist, which is fine (we don't need to delete rules that don't exist)
 		ipt.Delete(rule.table, rule.chain, rule.rulespec...)
 	}
+}
+
+func addNewChain(table, chain string) error {
+	ipt, err := iptables.New()
+	if err != nil {
+		// if we can't find iptables, give up and return
+		log.Errorf("Failed to setup IPTables. iptables binary was not found: %v", err)
+		return err
+	}
+
+	ipt.NewChain(table, chain)
+	return nil
+}
+
+func insertRules(rules []IPTablesRulePos) error {
+	ipt, err := iptables.New()
+	if err != nil {
+		// if we can't find iptables, give up and return
+		log.Errorf("Failed to setup IPTables. iptables binary was not found: %v", err)
+		return err
+	}
+
+	for _, rule := range rules {
+		exists, err := ipt.Exists(rule.table, rule.chain, rule.rulespec...)
+		if err != nil {
+			return err
+		}
+
+		if !exists {
+			log.Info("Inserting iptables rule: ", strings.Join(rule.rulespec, " "))
+			err := ipt.Insert(rule.table, rule.chain, rule.pos, rule.rulespec...)
+			if err != nil {
+				return fmt.Errorf("failed to insert IPTables rule: %v", err)
+			}
+		}
+	}
+
+	return nil
 }
