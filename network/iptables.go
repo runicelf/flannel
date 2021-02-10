@@ -82,7 +82,7 @@ func MasqRules(ipn ip.IP4Net, lease *subnet.Lease) []IPTablesRule {
 func ForwardRules(flannelNetwork string) []IPTablesRule {
 	return []IPTablesRule{
 		// These rules allow traffic to be forwarded if it is to or from the flannel network range.
-		{"filter", "FORWARD", 1, []string{"-m", "comment", "--comment", "flannel forwarding rules", "-j", FlannelFwdChain}},
+		{table: "filter", chain: "FORWARD", pos: 1, rulespec: []string{"-m", "comment", "--comment", "flannel forwarding rules", "-j", FlannelFwdChain}},
 		{table: "filter", chain: FlannelFwdChain, rulespec: []string{"-s", flannelNetwork, "-j", "ACCEPT"}},
 		{table: "filter", chain: FlannelFwdChain, rulespec: []string{"-d", flannelNetwork, "-j", "ACCEPT"}},
 	}
@@ -158,6 +158,8 @@ func ensureIPTables(ipt IPTables, rules []IPTablesRule) error {
 }
 
 func setupIPTables(ipt IPTables, rules []IPTablesRule) error {
+	// Here we create chain for forward rules, we ignore error because if there's an error
+	// it means the chain is already exists
 	ipt.NewChain("filter", FlannelFwdChain)
 
 	if err := appendRulesUniq(ipt, rules); err != nil {
