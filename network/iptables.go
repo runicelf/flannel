@@ -158,9 +158,15 @@ func ensureIPTables(ipt IPTables, rules []IPTablesRule) error {
 }
 
 func setupIPTables(ipt IPTables, rules []IPTablesRule) error {
-	// Here we create chain for forward rules, we ignore error because if there's an error
-	// it means the chain is already exists
-	ipt.NewChain("filter", FlannelFwdChain)
+	// Here we create a chain for forward rules
+	err := ipt.NewChain("filter", FlannelFwdChain)
+	eerr, ok := err.(*iptables.Error)
+	if ok {
+		// Exit code 1 means the chain already exists
+		if eerr.ExitCode() != 1 {
+			return fmt.Errorf("failed to create chain: %v", err)
+		}
+	}
 
 	if err := appendRulesUniq(ipt, rules); err != nil {
 		return err
