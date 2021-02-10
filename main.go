@@ -313,7 +313,7 @@ func main() {
 		log.Infof("Changing default FORWARD chain policy to ACCEPT")
 
 		// Move forward rules in special table
-		go network.SetupAndEnsureIPTables(network.ForwardRules(network.FlannelFwdChain, config.Network.String()), opts.iptablesResyncSeconds)
+		go network.SetupAndEnsureIPTables(network.ForwardRules(config.Network.String()), opts.iptablesResyncSeconds)
 	}
 
 	if err := WriteSubnetFile(opts.subnetFile, config.Network, opts.ipMasq, bn); err != nil {
