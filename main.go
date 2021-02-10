@@ -312,7 +312,7 @@ func main() {
 	if opts.iptablesForwardRules {
 		log.Infof("Changing default FORWARD chain policy to ACCEPT")
 
-		// Move forward rules in special table
+		// Move forward rules to special table
 		go network.SetupAndEnsureIPTables(network.ForwardRules(config.Network.String()), opts.iptablesResyncSeconds)
 	}
 

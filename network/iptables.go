@@ -182,8 +182,16 @@ func appendRulesUniq(ipt IPTables, rules []IPTablesRule) error {
 	for _, rule := range rules {
 		if rule.pos != 0 {
 			log.Info("Inserting iptables rule: ", strings.Join(rule.rulespec, " "))
-			err := ipt.Insert(rule.table, rule.chain, rule.pos, rule.rulespec...)
+			exists, err := ipt.Exists(rule.table, rule.chain, rule.rulespec...)
 			if err != nil {
+				return fmt.Errorf("failed to insert IPTables rule: %v", err)
+			}
+
+			if exists {
+				continue
+			}
+
+			if err := ipt.Insert(rule.table, rule.chain, rule.pos, rule.rulespec...); err != nil {
 				return fmt.Errorf("failed to insert IPTables rule: %v", err)
 			}
 		} else {
