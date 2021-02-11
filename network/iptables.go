@@ -199,7 +199,7 @@ func appendRulesUniq(ipt IPTables, rules []IPTablesRule) error {
 				return fmt.Errorf("failed to insert IPTables rule: %v", err)
 			}
 		} else {
-			log.Info("Adding iptables rule: ", strings.Join(rule.rulespec, " "))
+			log.Info("Appending iptables rule: ", strings.Join(rule.rulespec, " "))
 			err := ipt.AppendUnique(rule.table, rule.chain, rule.rulespec...)
 			if err != nil {
 				return fmt.Errorf("failed to insert IPTables rule: %v", err)
